@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, CheckCircle2, FileText, Inbox, ArrowRight } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { ApplicationTracker } from "./ApplicationTracker";
+
 function maskSensitive(value) {
   if (!value) return "";
 
@@ -219,6 +221,8 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
           Menu
         </button>
       </div>
+
+      <ApplicationTracker currentStep={currentStep} />
 
       {/* Progress Overview */}
       <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-5 shadow-soft backdrop-blur-xl">
