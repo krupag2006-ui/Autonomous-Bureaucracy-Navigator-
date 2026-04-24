@@ -16,6 +16,10 @@ body {
   margin: 0;
   min-width: 320px;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(8, 145, 178, 0.08), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(29, 78, 216, 0.12), transparent 28%),
+    #030816;
 }
 
 * {
@@ -44,6 +48,9 @@ input {
 }
 
 .dark body {
-  background: #020617;
+  background:
+    radial-gradient(circle at top left, rgba(8, 145, 178, 0.08), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(29, 78, 216, 0.12), transparent 28%),
+    #030816;
   color: #f8fafc;
 }

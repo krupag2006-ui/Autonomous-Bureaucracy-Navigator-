@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Bot, UploadCloud } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import PermissionsCard from "./PermissionsCard";
 import { SkeletonCard } from "../shared/SkeletonCard";
 
 const defaultMessages = [
@@ -12,7 +13,12 @@ const defaultMessages = [
   },
 ];
 
-export function DashboardCards({ onOpenChat, onOpenUpload, uploadedFiles }) {
+export function DashboardCards({
+  onOpenChat,
+  onOpenUpload,
+  uploadedFiles,
+  permissionsInput,
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [recentMessages, setRecentMessages] = useState(defaultMessages);
 
@@ -22,7 +28,7 @@ export function DashboardCards({ onOpenChat, onOpenUpload, uploadedFiles }) {
   }, []);
 
   useEffect(() => {
-    const saved = localStorage.getItem("chat_history");
+    const saved = sessionStorage.getItem("chat_history");
     if (!saved) {
       return;
     }
@@ -55,9 +61,14 @@ export function DashboardCards({ onOpenChat, onOpenUpload, uploadedFiles }) {
     return `${uploadedFiles.length} uploaded file${uploadedFiles.length === 1 ? "" : "s"} ready for review.`;
   }, [uploadedFiles]);
 
+  const showPermissionsCard = Boolean(
+    permissionsInput?.idea && permissionsInput?.location
+  );
+
   if (isLoading) {
     return (
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-3">
+        <SkeletonCard />
         <SkeletonCard />
         <SkeletonCard />
       </div>
@@ -65,7 +76,12 @@ export function DashboardCards({ onOpenChat, onOpenUpload, uploadedFiles }) {
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div
+      className={[
+        "grid gap-4",
+        showPermissionsCard ? "xl:grid-cols-3" : "xl:grid-cols-2",
+      ].join(" ")}
+    >
       <motion.div
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
@@ -143,6 +159,9 @@ export function DashboardCards({ onOpenChat, onOpenUpload, uploadedFiles }) {
           Upload Now
         </button>
       </motion.div>
+      {showPermissionsCard ? (
+        <PermissionsCard permissionsInput={permissionsInput} />
+      ) : null}
     </div>
   );
 }

@@ -29,7 +29,7 @@ export function Sidebar({
 
       <motion.aside
         className={[
-          "fixed inset-y-0 left-0 z-40 flex border-r border-white/10 bg-slate-950/80 backdrop-blur-xl lg:static lg:z-0",
+          "fixed inset-y-0 left-0 z-40 flex border-r border-white/10 bg-slate-950/80 backdrop-blur-xl",
           isCollapsed ? "w-[92px]" : "w-[280px]",
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         ].join(" ")}

@@ -4,6 +4,7 @@ import {
   FileCheck2,
   FileClock,
   Files,
+  ShieldCheck,
   UploadCloud,
 } from "lucide-react";
 
@@ -11,6 +12,7 @@ export const navigationItems = [
   { id: "chat", label: "Chat", icon: Bot },
   { id: "dashboard", label: "Dashboard", icon: Activity },
   { id: "upload", label: "Upload Documents", icon: UploadCloud },
+  { id: "permissions", label: "Permissions", icon: ShieldCheck },
 ];
 
 export const initialMessages = [
