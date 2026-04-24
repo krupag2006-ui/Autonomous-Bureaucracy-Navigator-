@@ -1,3 +1,4 @@
+
 import { AnimatePresence, motion } from "framer-motion";
 import { MoonStar, Sparkles, SunMedium } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -149,4 +150,10 @@ export default function App() {
       </div>
     </div>
   );
+
+import Upload from "./components/Upload";
+
+export default function App() {
+  return <Upload />;
+}
 }
