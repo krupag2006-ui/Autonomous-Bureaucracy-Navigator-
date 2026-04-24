@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertCircle, CheckCircle2, FileText, Inbox } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileText, Inbox, ArrowRight } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
 const acceptedTypes = [
@@ -7,7 +7,9 @@ const acceptedTypes = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
-function buildUploadItems(files) {
+const requiredDocuments = ["Aadhar", "PAN", "Passport"];
+
+function buildUploadItems(files, documentType) {
   return files.map((file) => ({
     id: `${file.name}-${file.lastModified}`,
     name: file.name,
@@ -17,12 +19,18 @@ function buildUploadItems(files) {
     error: acceptedTypes.includes(file.type) ? "" : "Only PDF and DOCX files are supported.",
     extractedData: null,
     file,
+    documentType,
   }));
 }
 
 export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [uploadedDocuments, setUploadedDocuments] = useState({});
+
+  const currentDocument = requiredDocuments[currentStep];
+  const isCompleted = currentStep >= requiredDocuments.length;
 
   const queued = useMemo(
     () => files.filter((file) => file.status !== "success").length,
@@ -61,6 +69,13 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
         status: "success",
         extractedData: data,
       });
+
+      // Mark document as completed and move to next step
+      setUploadedDocuments(prev => ({
+        ...prev,
+        [item.documentType]: true
+      }));
+      setCurrentStep(prev => prev + 1);
     } catch (error) {
       updateFile(item.id, {
         progress: 0,
@@ -71,7 +86,9 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
   };
 
   const processUploads = (incomingFiles) => {
-    const nextItems = buildUploadItems(incomingFiles);
+    if (isCompleted) return;
+
+    const nextItems = buildUploadItems(incomingFiles, currentDocument);
     setFiles((current) => [...current, ...nextItems]);
 
     nextItems.forEach((item) => {
@@ -115,6 +132,60 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
     );
   };
 
+  const renderDocumentStep = (document, index) => {
+    const isCurrent = index === currentStep;
+    const isCompleted = uploadedDocuments[document];
+    const isFuture = index > currentStep;
+
+    return (
+      <motion.div
+        key={document}
+        layout
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -12 }}
+        className={`rounded-3xl border p-4 ${
+          isCurrent
+            ? "border-sky-400/60 bg-sky-400/10"
+            : isCompleted
+            ? "border-emerald-400/60 bg-emerald-400/10"
+            : "border-white/[0.08] bg-slate-950/30"
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`rounded-2xl p-3 ${
+              isCurrent
+                ? "bg-sky-400/20 text-sky-300"
+                : isCompleted
+                ? "bg-emerald-400/20 text-emerald-300"
+                : "bg-white/5 text-slate-500"
+            }`}>
+              {isCompleted ? (
+                <CheckCircle2 className="h-5 w-5" />
+              ) : (
+                <FileText className="h-5 w-5" />
+              )}
+            </div>
+            <div>
+              <p className={`text-sm font-medium ${
+                isCurrent ? "text-white" : isCompleted ? "text-emerald-300" : "text-slate-400"
+              }`}>
+                {document}
+              </p>
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
+                {isCompleted ? "Completed" : isCurrent ? "Current step" : "Pending"}
+              </p>
+            </div>
+          </div>
+          {isCurrent && !isCompleted && (
+            <ArrowRight className="h-5 w-5 text-sky-400" />
+          )}
+        </div>
+      </motion.div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -122,7 +193,14 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
           <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
             Intake
           </p>
-          <h3 className="mt-2 text-2xl font-semibold text-white">Upload documents</h3>
+          <h3 className="mt-2 text-2xl font-semibold text-white">
+            Upload documents
+          </h3>
+          {!isCompleted && (
+            <p className="mt-2 text-sm text-slate-400">
+              Step {currentStep + 1} of {requiredDocuments.length}: Upload {currentDocument}
+            </p>
+          )}
         </div>
         <button
           type="button"
@@ -133,64 +211,102 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
         </button>
       </div>
 
-      <motion.div
-        layout
-        onDragOver={(event) => {
-          event.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={(event) => {
-          event.preventDefault();
-          setIsDragging(false);
-          processUploads(Array.from(event.dataTransfer.files));
-        }}
-        className={[
-          "relative overflow-hidden rounded-[32px] border border-dashed p-10 text-center shadow-glow backdrop-blur-xl transition",
-          isDragging
-            ? "border-sky-400/60 bg-sky-400/10"
-            : "border-white/10 bg-white/[0.04]",
-        ].join(" ")}
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-sky-500/10 via-transparent to-cyan-400/10" />
-        <div className="relative">
-          <motion.div
-            animate={{ y: [0, -6, 0] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-white/10 text-sky-300"
-          >
-            <Inbox className="h-7 w-7" />
-          </motion.div>
-          <h4 className="mt-6 text-xl font-semibold text-white">
-            Drop PDF or DOCX files here
-          </h4>
-          <p className="mt-3 text-sm text-slate-400">
-            Drag and drop your document packet, or browse to add files for OCR, extraction, and workflow planning.
-          </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => inputRef.current?.click()}
-              className="rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 px-5 py-3 text-sm font-medium text-white shadow-lg shadow-sky-500/30"
-            >
-              Browse files
-            </motion.button>
-            <span className="rounded-full border border-white/10 px-3 py-2 text-xs uppercase tracking-[0.25em] text-slate-500">
-              {queued} active upload{queued === 1 ? "" : "s"}
-            </span>
-          </div>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".pdf,.docx"
-            multiple
-            className="hidden"
-            onChange={(event) => processUploads(Array.from(event.target.files || []))}
-          />
+      {/* Progress Overview */}
+      <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-5 shadow-soft backdrop-blur-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-lg font-semibold text-white">Document Progress</h4>
+          <span className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-500">
+            {Object.keys(uploadedDocuments).length} of {requiredDocuments.length} completed
+          </span>
         </div>
-      </motion.div>
+        <div className="space-y-3">
+          {requiredDocuments.map((doc, index) => renderDocumentStep(doc, index))}
+        </div>
+      </div>
+
+      {!isCompleted && (
+        <motion.div
+          layout
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setIsDragging(false);
+            processUploads(Array.from(event.dataTransfer.files));
+          }}
+          className={[
+            "relative overflow-hidden rounded-[32px] border border-dashed p-10 text-center shadow-glow backdrop-blur-xl transition",
+            isDragging
+              ? "border-sky-400/60 bg-sky-400/10"
+              : "border-white/10 bg-white/[0.04]",
+          ].join(" ")}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-sky-500/10 via-transparent to-cyan-400/10" />
+          <div className="relative">
+            <motion.div
+              animate={{ y: [0, -6, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-white/10 text-sky-300"
+            >
+              <Inbox className="h-7 w-7" />
+            </motion.div>
+            <h4 className="mt-6 text-xl font-semibold text-white">
+              Upload {currentDocument}
+            </h4>
+            <p className="mt-3 text-sm text-slate-400">
+              Drag and drop your {currentDocument} document, or browse to add the file for processing.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => inputRef.current?.click()}
+                className="rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 px-5 py-3 text-sm font-medium text-white shadow-lg shadow-sky-500/30"
+              >
+                Browse files
+              </motion.button>
+              <span className="rounded-full border border-white/10 px-3 py-2 text-xs uppercase tracking-[0.25em] text-slate-500">
+                {queued} active upload{queued === 1 ? "" : "s"}
+              </span>
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".pdf,.docx"
+              multiple
+              className="hidden"
+              onChange={(event) => processUploads(Array.from(event.target.files || []))}
+            />
+          </div>
+        </motion.div>
+      )}
+
+      {isCompleted && (
+        <motion.div
+          layout
+          className="rounded-[32px] border border-emerald-400/60 bg-emerald-400/10 p-10 text-center shadow-glow backdrop-blur-xl"
+        >
+          <div className="relative">
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-400/20 text-emerald-300"
+            >
+              <CheckCircle2 className="h-7 w-7" />
+            </motion.div>
+            <h4 className="mt-6 text-xl font-semibold text-white">
+              All documents uploaded!
+            </h4>
+            <p className="mt-3 text-sm text-slate-400">
+              Your document submission is complete. You can now proceed with the next steps.
+            </p>
+          </div>
+        </motion.div>
+      )}
 
       <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-5 shadow-soft backdrop-blur-xl">
         <div className="flex items-center justify-between">
@@ -232,7 +348,7 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
                       <div>
                         <p className="text-sm font-medium text-white">{file.name}</p>
                         <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
-                          {file.size}
+                          {file.size} • {file.documentType}
                         </p>
                       </div>
                     </div>
