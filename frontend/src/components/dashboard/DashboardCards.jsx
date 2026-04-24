@@ -1,60 +1,63 @@
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
-import { dashboardStats, recentActivity } from "../../data/mock";
+import { Bot, UploadCloud } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { SkeletonCard } from "../shared/SkeletonCard";
 
-function AnimatedNumber({ value, suffix }) {
-  const [displayValue, setDisplayValue] = useState(0);
+const defaultMessages = [
+  {
+    id: "welcome",
+    role: "assistant",
+    content:
+      "Hello. I am your Autonomous Bureaucracy Navigator. Start a workflow from chat to see guided steps here.",
+  },
+];
 
-  useEffect(() => {
-    let frame;
-    const duration = 900;
-    const start = performance.now();
-
-    const tick = (now) => {
-      const progress = Math.min((now - start) / duration, 1);
-      setDisplayValue(Math.round(progress * value));
-      if (progress < 1) {
-        frame = window.requestAnimationFrame(tick);
-      }
-    };
-
-    frame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frame);
-  }, [value]);
-
-  return (
-    <span>
-      {displayValue}
-      {suffix}
-    </span>
-  );
-}
-
-export function DashboardCards({ uploadedFiles }) {
+export function DashboardCards({ onOpenChat, onOpenUpload, uploadedFiles }) {
   const [isLoading, setIsLoading] = useState(true);
+  const [recentMessages, setRecentMessages] = useState(defaultMessages);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 850);
     return () => window.clearTimeout(timer);
   }, []);
 
-  const stats = dashboardStats.map((card) => {
-    if (card.id === "documents") {
-      return {
-        ...card,
-        value: uploadedFiles.length,
-        trend: uploadedFiles.length === 0 ? "No uploads yet" : `${uploadedFiles.length} files ready for review`,
-      };
+  useEffect(() => {
+    const saved = localStorage.getItem("chat_history");
+    if (!saved) {
+      return;
     }
 
-    return card;
-  });
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        setRecentMessages(parsed.slice(-3));
+      }
+    } catch {
+      setRecentMessages(defaultMessages);
+    }
+  }, []);
+
+  const previewMessages = useMemo(() => {
+    const filteredMessages = recentMessages.filter(
+      (message) =>
+        !message.content.includes("upload API") &&
+        message.content.trim().length > 2,
+    );
+
+    return filteredMessages.slice(-2);
+  }, [recentMessages]);
+
+  const uploadSummary = useMemo(() => {
+    if (uploadedFiles.length === 0) {
+      return "No uploaded documents yet.";
+    }
+
+    return `${uploadedFiles.length} uploaded file${uploadedFiles.length === 1 ? "" : "s"} ready for review.`;
+  }, [uploadedFiles]);
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_1.1fr_1.1fr]">
-        <SkeletonCard />
+      <div className="grid gap-4 xl:grid-cols-2">
         <SkeletonCard />
         <SkeletonCard />
       </div>
@@ -62,67 +65,83 @@ export function DashboardCards({ uploadedFiles }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-3">
-        {stats.map(({ id, title, value, suffix, trend, icon: Icon, accent }, index) => (
-          <motion.div
-            key={id}
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.08 }}
-            whileHover={{ y: -4 }}
-            className="rounded-[30px] border border-white/10 bg-white/[0.05] p-5 shadow-soft backdrop-blur-xl"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm text-slate-400">{title}</p>
-                <div className="mt-4 text-4xl font-semibold text-white">
-                  <AnimatedNumber value={value} suffix={suffix} />
-                </div>
-                <p className="mt-3 text-sm text-slate-400">{trend}</p>
-              </div>
-              <div className={`rounded-2xl bg-gradient-to-br p-3 ${accent}`}>
-                <Icon className="h-5 w-5 text-white" />
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
+    <div className="grid gap-4 xl:grid-cols-2">
       <motion.div
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="rounded-[30px] border border-white/10 bg-white/[0.05] p-6 shadow-soft backdrop-blur-xl"
-      >
-        <div className="flex items-center justify-between">
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.04 }}
+      whileHover={{ y: -4 }}
+      className="rounded-[30px] border border-slate-200/80 bg-white/70 p-6 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05]"
+    >
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold text-white">Recent activity</h3>
-            <p className="mt-1 text-sm text-slate-400">
-              A concise feed of document movement and AI review milestones.
+            <p className="text-sm text-slate-700 dark:text-slate-400">Chat Preview</p>
+            <h3 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">
+              Start your latest conversation
+            </h3>
+            <p className="mt-3 text-sm text-slate-700 dark:text-slate-400">
+              Start your workflow.
             </p>
           </div>
-          <div className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-xs text-sky-300">
-            Updated live
+          <div className="rounded-2xl bg-gradient-to-br from-sky-500/20 to-cyan-500/10 p-3">
+            <Bot className="h-5 w-5 text-white" />
           </div>
         </div>
 
         <div className="mt-6 space-y-3">
-          {recentActivity.map((item) => (
+          {previewMessages.map((message) => (
             <div
-              key={item.id}
-              className="flex flex-col gap-3 rounded-2xl border border-white/[0.08] bg-slate-950/30 p-4 md:flex-row md:items-center md:justify-between"
+              key={message.id}
+              className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700 dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-300"
             >
-              <div>
-                <p className="text-sm font-medium text-white">{item.title}</p>
-                <p className="mt-1 text-sm text-slate-400">{item.detail}</p>
-              </div>
-              <span className="text-xs uppercase tracking-[0.25em] text-slate-500">
-                {item.time}
-              </span>
+              <p className="line-clamp-3">{message.content}</p>
             </div>
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={onOpenChat}
+          className="mt-6 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 px-5 py-3 text-sm font-medium text-white shadow-lg shadow-sky-500/30"
+        >
+          Open Chat
+        </button>
+      </motion.div>
+
+      <motion.div
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.12 }}
+      whileHover={{ y: -4 }}
+      className="rounded-[30px] border border-slate-200/80 bg-white/70 p-6 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05]"
+    >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm text-slate-700 dark:text-slate-400">Upload Documents</p>
+            <h3 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">
+              Add files to the current workflow
+            </h3>
+            <p className="mt-3 text-sm text-slate-700 dark:text-slate-400">
+              Upload your supporting documents records for extraction.
+            </p>
+          </div>
+          <div className="rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 p-3">
+            <UploadCloud className="h-5 w-5 text-white" />
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/[0.08] dark:bg-slate-800">
+          <p className="text-4xl font-semibold text-slate-900 dark:text-white">{uploadedFiles.length}</p>
+          <p className="mt-2 text-sm text-slate-700 dark:text-slate-400">{uploadSummary}</p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onOpenUpload}
+          className="mt-6 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-800 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10"
+        >
+          Upload Now
+        </button>
       </motion.div>
     </div>
   );

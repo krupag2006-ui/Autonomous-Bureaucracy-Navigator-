@@ -49,7 +49,7 @@ export function Sidebar({
                   className="min-w-0"
                 >
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                    AI Copilot
+                    AI AGENT
                   </p>
                   <h1 className="text-sm font-semibold text-white">
                     Autonomous Bureaucracy Navigator

@@ -51,9 +51,9 @@ export default function Upload() {
 
       {result && (
         <div>
-          <p>Filename: {result.filename}</p>
-          <p>Content Type: {result.content_type}</p>
-          <p>File Size: {result.file_size} bytes</p>
+          <p>Name: {result.name}</p>
+          <p>DOB: {result.dob}</p>
+          <p>Address: {result.address}</p>
         </div>
       )}
     </div>

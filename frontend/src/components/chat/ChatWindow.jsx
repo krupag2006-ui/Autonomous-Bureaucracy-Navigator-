@@ -1,31 +1,59 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, SendHorizonal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { initialMessages, suggestedPrompts } from "../../data/mock";
+import { initialMessages } from "../../data/mock";
 import { MessageBubble } from "./MessageBubble";
-import { PromptSuggestions } from "./PromptSuggestions";
 import { TypingBubble } from "./TypingBubble";
 
-function buildAssistantReply(input, uploadCount) {
-  const normalized = input.toLowerCase();
+const defaultMessages = initialMessages.filter((message) => message.id !== "hint");
 
-  if (normalized.includes("checklist")) {
-    return `Here is a suggested action plan:\n\n1. Gather your identity, registration, and address documents.\n2. Validate each uploaded file for expiration dates and signatures.\n3. Submit the primary application packet.\n4. Track follow-up requests and due dates in the dashboard.\n\nI also see **${uploadCount} uploaded document${uploadCount === 1 ? "" : "s"}** ready for review.`;
+function formatStructuredReply(payload, uploadCount) {
+  const sections = [payload.reply];
+  const { data = {}, step } = payload;
+
+  if (data.documents?.length) {
+    sections.push(`Documents:\n- ${data.documents.join("\n- ")}`);
   }
 
-  if (normalized.includes("summarize")) {
-    return `Executive summary prepared.\n\n- I found the core filing steps, supporting document requirements, and likely approval dependencies.\n- The largest risk is incomplete identity or proof-of-address records.\n- I recommend verifying document freshness before submission.`;
+  if (data.permissions?.length) {
+    sections.push(`Permissions:\n- ${data.permissions.join("\n- ")}`);
   }
 
-  if (normalized.includes("missing")) {
-    return `Potential gaps detected:\n\n- Proof of address newer than 90 days\n- Signed declaration form\n- Supporting compliance certificate\n\nWant me to turn those into a submission checklist next?`;
+  if (data.offices?.length) {
+    sections.push(`Offices:\n- ${data.offices.join("\n- ")}`);
   }
 
-  return `I can help with that. Based on your request, I would:\n\n- inspect the relevant forms and uploaded materials\n- extract deadlines, dependencies, and required evidence\n- generate a concise next-step plan\n\nIf you upload more files, I can tailor the answer to the exact packet.`;
+  if (data.cost_estimation) {
+    const costLines = Object.entries(data.cost_estimation).map(
+      ([key, value]) => `- ${key.replaceAll("_", " ")}: ${value}`,
+    );
+    sections.push(`Cost estimation:\n${costLines.join("\n")}`);
+  }
+
+  if (data.extracted_data && Object.keys(data.extracted_data).length > 0) {
+    const extractedLines = Object.entries(data.extracted_data).map(
+      ([key, value]) => `- ${key.replaceAll("_", " ")}: ${value}`,
+    );
+    sections.push(`Extracted data:\n${extractedLines.join("\n")}`);
+  }
+
+  if (uploadCount > 0 && step === "upload") {
+    sections.push(
+      `Uploaded documents ready in this session: **${uploadCount}**.`,
+    );
+  }
+
+  return sections.join("\n\n");
 }
 
-export function ChatWindow({ onOpenSidebar, uploadedFiles }) {
-  const [messages, setMessages] = useState(initialMessages);
+export function ChatWindow({
+  messages,
+  onOpenSidebar,
+  onSetActiveTab,
+  sessionId,
+  setMessages,
+  uploadedFiles,
+}) {
   const [draft, setDraft] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const endRef = useRef(null);
@@ -35,9 +63,12 @@ export function ChatWindow({ onOpenSidebar, uploadedFiles }) {
   }, [messages, isTyping]);
 
   const uploadCount = uploadedFiles.length;
-  const emptyState = useMemo(() => messages.length <= initialMessages.length, [messages.length]);
+  const emptyState = useMemo(
+    () => messages.length <= defaultMessages.length,
+    [messages.length],
+  );
 
-  const sendMessage = (value) => {
+  const sendMessage = async (value) => {
     const trimmed = value.trim();
     if (!trimmed || isTyping) {
       return;
@@ -53,17 +84,45 @@ export function ChatWindow({ onOpenSidebar, uploadedFiles }) {
     setDraft("");
     setIsTyping(true);
 
-    window.setTimeout(() => {
+    try {
+      const response = await fetch("http://localhost:8000/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: trimmed,
+          session_id: sessionId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Chat request failed.");
+      }
+
+      const data = await response.json();
+
       setMessages((current) => [
         ...current,
         {
           id: `assistant-${Date.now()}`,
           role: "assistant",
-          content: buildAssistantReply(trimmed, uploadCount),
+          content: formatStructuredReply(data, uploadCount),
+          step: data.step,
         },
       ]);
+    } catch (error) {
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: error.message || "Something went wrong while contacting the backend.",
+        },
+      ]);
+    } finally {
       setIsTyping(false);
-    }, 1200);
+    }
   };
 
   return (
@@ -103,7 +162,20 @@ export function ChatWindow({ onOpenSidebar, uploadedFiles }) {
         <div className="space-y-4">
           <AnimatePresence initial={false}>
             {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+              <div key={message.id} className="space-y-3">
+                <MessageBubble message={message} />
+                {message.role === "assistant" && message.step === "upload" ? (
+                  <div className="flex justify-start">
+                    <button
+                      type="button"
+                      onClick={() => onSetActiveTab?.("upload")}
+                      className="rounded-2xl border border-sky-400/20 bg-sky-400/10 px-4 py-2 text-sm text-sky-200 transition hover:bg-sky-400/20"
+                    >
+                      Upload Documents
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             ))}
             {isTyping ? <TypingBubble key="typing" /> : null}
           </AnimatePresence>
@@ -112,8 +184,7 @@ export function ChatWindow({ onOpenSidebar, uploadedFiles }) {
       </div>
 
       <div className="border-t border-white/10 px-4 py-4 md:px-6">
-        <PromptSuggestions prompts={suggestedPrompts} onSelect={sendMessage} />
-        <div className="mt-4 flex items-end gap-3 rounded-[28px] border border-white/10 bg-slate-950/40 p-3">
+        <div className="flex items-end gap-3 rounded-[28px] border border-white/10 bg-slate-950/40 p-3">
           <textarea
             rows={1}
             value={draft}

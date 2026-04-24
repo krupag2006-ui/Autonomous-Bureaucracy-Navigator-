@@ -1,4 +1,3 @@
-
 import { AnimatePresence, motion } from "framer-motion";
 import { MoonStar, Sparkles, SunMedium } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -7,6 +6,7 @@ import { DashboardCards } from "./components/dashboard/DashboardCards";
 import { Sidebar } from "./components/layout/Sidebar";
 import { SectionHeader } from "./components/shared/SectionHeader";
 import { UploadArea } from "./components/upload/UploadArea";
+import { initialMessages } from "./data/mock";
 
 const pageTransition = {
   initial: { opacity: 0, y: 18 },
@@ -15,19 +15,62 @@ const pageTransition = {
   transition: { duration: 0.35, ease: "easeOut" },
 };
 
+const defaultMessages = initialMessages.filter((message) => message.id !== "hint");
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState("chat");
-  const [theme, setTheme] = useState("dark");
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem("theme") || "dark";
+  });
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [sessionId] = useState(() => {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+
+    return `session-${Date.now()}`;
+  });
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-    document.documentElement.style.colorScheme = theme;
+    const root = document.documentElement;
+
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+
+    root.style.colorScheme = theme;
+    localStorage.setItem("theme", theme);
   }, [theme]);
 
-  const successfulFiles = uploadedFiles.filter((file) => file.status === "success");
+  useEffect(() => {
+    const saved = sessionStorage.getItem("chat_history");
+    if (saved) {
+      try {
+        setMessages(JSON.parse(saved));
+        return;
+      } catch {
+        setMessages(defaultMessages);
+        return;
+      }
+    }
+
+    setMessages(defaultMessages);
+  }, []);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      sessionStorage.setItem("chat_history", JSON.stringify(messages));
+    }
+  }, [messages]);
+
+  const successfulFiles = uploadedFiles.filter(
+    (file) => file.status === "success"
+  );
 
   const headerAction = useMemo(
     () => (
@@ -35,8 +78,10 @@ export default function App() {
         type="button"
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
-        onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/10"
+        onClick={() =>
+          setTheme((current) => (current === "dark" ? "light" : "dark"))
+        }
+        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
       >
         {theme === "dark" ? (
           <>
@@ -51,11 +96,12 @@ export default function App() {
         )}
       </motion.button>
     ),
-    [theme],
+    [theme]
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      {/* Background */}
       <div
         className={[
           "fixed inset-0 -z-20 transition-all duration-500",
@@ -64,96 +110,83 @@ export default function App() {
             : "bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.10),_transparent_24%),linear-gradient(180deg,_#f8fafc_0%,_#eef4ff_45%,_#e0f2fe_100%)]",
         ].join(" ")}
       />
-      <div className="fixed inset-0 -z-10 bg-hero-grid opacity-70" />
 
       <div className="relative flex min-h-screen">
+        {/* Sidebar */}
         <Sidebar
           activeTab={activeTab}
           isCollapsed={isCollapsed}
           isMobileOpen={isMobileOpen}
           onCloseMobile={() => setIsMobileOpen(false)}
           onTabChange={setActiveTab}
-          onToggleCollapse={() => setIsCollapsed((current) => !current)}
+          onToggleCollapse={() => setIsCollapsed((c) => !c)}
           theme={theme}
-          onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+          onToggleTheme={() =>
+            setTheme((c) => (c === "dark" ? "light" : "dark"))
+          }
         />
 
+        {/* Main */}
         <main className="flex-1 p-4 md:p-6 lg:p-8">
-          <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1600px] flex-col gap-6">
-            <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-glow backdrop-blur-xl">
+          <div className="mx-auto max-w-[1600px] flex flex-col gap-6">
+            {/* Header */}
+            <div className="rounded-[32px] border border-slate-200/80 bg-white/70 p-6 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.03]">
               <SectionHeader
                 eyebrow="Premium workflow intelligence"
                 title="Navigate bureaucracy with an AI-native control center"
-                description="A polished, startup-grade frontend for document-heavy workflows. Chat with your copilot, upload evidence packets, and track processing momentum from one calm, high-trust interface."
+                description="Chat, upload documents, and track progress in one place."
                 action={headerAction}
               />
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-400/10 px-4 py-2 text-sm text-sky-200">
+              <div className="mt-6 flex gap-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-400/10 px-4 py-2 text-sm text-sky-700 dark:text-sky-200">
                   <Sparkles className="h-4 w-4" />
-                  Premium AI experience
+                  AI Experience
                 </div>
-                <div className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-300">
-                  {successfulFiles.length} uploaded file{successfulFiles.length === 1 ? "" : "s"}
+                <div className="rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-sm text-slate-700 dark:border-white/10 dark:bg-transparent dark:text-slate-300">
+                  {successfulFiles.length} uploaded
                 </div>
               </div>
             </div>
 
+            {/* Pages */}
+            <motion.section
+              {...pageTransition}
+              style={{ display: activeTab === "chat" ? "block" : "none" }}
+            >
+              <ChatWindow
+                messages={messages}
+                onSetActiveTab={setActiveTab}
+                sessionId={sessionId}
+                setMessages={setMessages}
+                uploadedFiles={successfulFiles}
+              />
+            </motion.section>
+
             <AnimatePresence mode="wait">
-              {activeTab === "chat" ? (
-                <motion.section key="chat" {...pageTransition} className="flex-1">
-                  <div className="grid h-full gap-6 xl:grid-cols-[1.3fr_0.7fr]">
-                    <div className="min-h-[70vh]">
-                      <ChatWindow
-                        onOpenSidebar={() => setIsMobileOpen(true)}
-                        uploadedFiles={successfulFiles}
-                      />
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-soft backdrop-blur-xl">
-                        <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-                          Mission control
-                        </p>
-                        <h3 className="mt-3 text-xl font-semibold text-white">
-                          Keep every filing moving
-                        </h3>
-                        <p className="mt-3 text-sm leading-6 text-slate-400">
-                          Upload packets, extract requirements, and turn ambiguous bureaucracy into a concrete plan.
-                        </p>
-                      </div>
-
-                      <DashboardCards uploadedFiles={successfulFiles} />
-                    </div>
-                  </div>
+              {activeTab === "dashboard" && (
+                <motion.section key="dashboard" {...pageTransition}>
+                  <DashboardCards
+                    onOpenChat={() => setActiveTab("chat")}
+                    onOpenUpload={() => setActiveTab("upload")}
+                    uploadedFiles={successfulFiles}
+                  />
                 </motion.section>
-              ) : null}
+              )}
 
-              {activeTab === "dashboard" ? (
-                <motion.section key="dashboard" {...pageTransition} className="space-y-6">
-                  <DashboardCards uploadedFiles={successfulFiles} />
-                </motion.section>
-              ) : null}
-
-              {activeTab === "upload" ? (
+              {activeTab === "upload" && (
                 <motion.section key="upload" {...pageTransition}>
                   <UploadArea
                     files={uploadedFiles}
+                    sessionId={sessionId}
                     setFiles={setUploadedFiles}
-                    onOpenSidebar={() => setIsMobileOpen(true)}
                   />
                 </motion.section>
-              ) : null}
+              )}
             </AnimatePresence>
           </div>
         </main>
       </div>
     </div>
   );
-
-import Upload from "./components/Upload";
-
-export default function App() {
-  return <Upload />;
-}
 }

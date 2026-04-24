@@ -15,11 +15,12 @@ function buildUploadItems(files) {
     progress: 0,
     status: acceptedTypes.includes(file.type) ? "uploading" : "error",
     error: acceptedTypes.includes(file.type) ? "" : "Only PDF and DOCX files are supported.",
+    extractedData: null,
     file,
   }));
 }
 
-export function UploadArea({ files, setFiles, onOpenSidebar }) {
+export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -27,6 +28,47 @@ export function UploadArea({ files, setFiles, onOpenSidebar }) {
     () => files.filter((file) => file.status !== "success").length,
     [files],
   );
+
+  const updateFile = (fileId, updates) => {
+    setFiles((current) =>
+      current.map((entry) =>
+        entry.id === fileId ? { ...entry, ...updates } : entry,
+      ),
+    );
+  };
+
+  const uploadFile = async (item) => {
+    try {
+      updateFile(item.id, { progress: 25 });
+
+      const formData = new FormData();
+      formData.append("file", item.file);
+      formData.append("session_id", sessionId);
+
+      const response = await fetch("http://localhost:8000/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Upload failed.");
+      }
+
+      const data = await response.json();
+
+      updateFile(item.id, {
+        progress: 100,
+        status: "success",
+        extractedData: data,
+      });
+    } catch (error) {
+      updateFile(item.id, {
+        progress: 0,
+        status: "error",
+        error: error.message || "Upload failed.",
+      });
+    }
+  };
 
   const processUploads = (incomingFiles) => {
     const nextItems = buildUploadItems(incomingFiles);
@@ -37,26 +79,40 @@ export function UploadArea({ files, setFiles, onOpenSidebar }) {
         return;
       }
 
-      let progress = 0;
-      const interval = window.setInterval(() => {
-        progress += Math.random() * 18 + 12;
-        setFiles((current) =>
-          current.map((entry) =>
-            entry.id === item.id
-              ? {
-                  ...entry,
-                  progress: Math.min(100, Math.round(progress)),
-                  status: progress >= 100 ? "success" : "uploading",
-                }
-              : entry,
-          ),
-        );
-
-        if (progress >= 100) {
-          window.clearInterval(interval);
-        }
-      }, 220);
+      uploadFile(item);
     });
+  };
+
+  const renderDetails = (data) => {
+    const detailItems = Object.entries(data)
+      .filter(([key]) => key !== "type")
+      .map(([key, value]) => ({
+        label: key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
+        value,
+      }));
+
+    return (
+      <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
+        <div className="mb-3">
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
+            Type
+          </p>
+          <p className="mt-1 text-white">
+            {data.type.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())}
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {detailItems.map((item) => (
+          <div key={item.label}>
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
+              {item.label}
+            </p>
+            <p className="mt-1 text-white">{item.value}</p>
+          </div>
+        ))}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -213,6 +269,10 @@ export function UploadArea({ files, setFiles, onOpenSidebar }) {
                   ) : (
                     <p className="mt-4 text-sm text-rose-300">{file.error}</p>
                   )}
+
+                  {file.status === "success" && file.extractedData
+                    ? renderDetails(file.extractedData)
+                    : null}
                 </motion.div>
               ))}
             </AnimatePresence>
