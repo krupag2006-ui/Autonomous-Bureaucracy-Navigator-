@@ -44,6 +44,11 @@ class ChatRequest(BaseModel):
     session_id: str
 
 
+class PermissionsRequest(BaseModel):
+    idea: str
+    location: str
+
+
 def create_response(
     reply: str,
     step: str,
@@ -97,7 +102,7 @@ def get_or_create_session(session_id: str) -> dict[str, Any]:
     return sessions[session_id]
 
 
-def get_permissions(location: str) -> list[str]:
+def get_local_permissions(location: str) -> list[str]:
     if location.strip().lower() == "bangalore":
         return ["BBMP", "BESCOM", "BWSSB"]
     return ["Local Municipal Authority"]
@@ -175,6 +180,46 @@ def extract_document_data(filename: str, text: str) -> dict[str, Any]:
     }
 
 
+def get_permissions_explorer_data(idea: str, location: str) -> dict[str, Any]:
+    normalized_idea = idea.lower()
+    normalized_location = location.lower()
+
+    if "house" in normalized_idea and normalized_location == "bangalore":
+        return {
+            "permissions": [
+                {
+                    "name": "Building Plan Approval",
+                    "link": "https://bbmp.gov.in",
+                },
+                {
+                    "name": "Online Plan Approval (BPAS)",
+                    "link": "https://bpas.bbmpgov.in",
+                },
+                {
+                    "name": "Electricity Connection",
+                    "link": "https://bescom.karnataka.gov.in",
+                },
+                {
+                    "name": "Water & Sewage Connection",
+                    "link": "https://bwssb.karnataka.gov.in",
+                },
+                {
+                    "name": "Occupancy Certificate",
+                    "link": "https://bbmp.gov.in",
+                },
+            ]
+        }
+
+    return {
+        "permissions": [
+            {
+                "name": "Local Authority Approval",
+                "link": "https://services.india.gov.in",
+            }
+        ]
+    }
+
+
 def handle_house_flow(session: dict[str, Any], message: str) -> dict[str, Any]:
     message_lower = message.lower().strip()
     current_step = session["step"] or "ask_location"
@@ -198,7 +243,7 @@ def handle_house_flow(session: dict[str, Any], message: str) -> dict[str, Any]:
         )
 
     if current_step == "show_documents":
-        permissions = get_permissions(session["data"].get("location", ""))
+        permissions = get_local_permissions(session["data"].get("location", ""))
         session["step"] = "show_permissions"
         return create_response(
             "These permissions and offices are typically involved.",
@@ -283,7 +328,7 @@ def handle_business_flow(session: dict[str, Any], message: str) -> dict[str, Any
         )
 
     if current_step == "show_documents":
-        permissions = get_permissions(session["data"].get("location", ""))
+        permissions = get_local_permissions(session["data"].get("location", ""))
         session["step"] = "show_permissions"
         return create_response(
             "These permissions and offices usually apply for business setup.",
@@ -376,6 +421,67 @@ async def chat(request: ChatRequest):
         return handle_house_flow(session, request.message)
 
     return handle_business_flow(session, request.message)
+
+
+@app.post("/permissions")
+def get_permissions_route(data: dict):
+    idea = data.get("idea", "").lower()
+    location = data.get("location", "").lower()
+
+    if "bangalore" in location and (
+        "house" in idea or
+        "build" in idea or
+        "permission" in idea
+    ):
+        return {
+            "permissions": [
+                {
+                    "name": "Building Plan Approval",
+                    "link": "https://bbmp.gov.in",
+                },
+                {
+                    "name": "Online Plan Approval (BPAS)",
+                    "link": "https://bpas.bbmpgov.in",
+                },
+                {
+                    "name": "Land Authority Approval (BDA)",
+                    "link": "https://bda.karnataka.gov.in",
+                },
+                {
+                    "name": "Commencement Certificate",
+                    "link": "https://bbmp.gov.in",
+                },
+                {
+                    "name": "Electricity Connection (BESCOM)",
+                    "link": "https://bescom.karnataka.gov.in",
+                },
+                {
+                    "name": "Water & Sewage (BWSSB)",
+                    "link": "https://bwssb.karnataka.gov.in",
+                },
+                {
+                    "name": "Fire Safety NOC",
+                    "link": "https://karnataka.gov.in",
+                },
+                {
+                    "name": "Environmental Clearance",
+                    "link": "https://kspcb.karnataka.gov.in",
+                },
+                {
+                    "name": "Occupancy Certificate",
+                    "link": "https://bbmp.gov.in",
+                },
+            ]
+        }
+
+    return {
+        "permissions": [
+            {
+                "name": "Local Authority Approval",
+                "link": "https://india.gov.in",
+            }
+        ]
+    }
 
 
 @app.post("/upload")
