@@ -77,6 +77,10 @@ export function ChatWindow({
     return text.toLowerCase().includes("permission");
   };
 
+  const isApplicationQuery = (text) => {
+    return text.toLowerCase().includes("application");
+  };
+
   const lastUserMessage = useMemo(
     () => messages.filter((m) => m.role === "user").slice(-1)[0]?.content || "",
     [messages]
@@ -111,6 +115,19 @@ export function ChatWindow({
       });
 
       setActiveCard("permissions");
+      return;
+    }
+
+    if (isApplicationQuery(trimmed)) {
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: "Here are the applications required for your process...",
+        },
+      ]);
+
       return;
     }
 
@@ -218,6 +235,16 @@ export function ChatWindow({
                       className="mt-2 rounded-xl bg-green-500/20 px-3 py-1 text-sm text-green-300"
                     >
                       View Permissions
+                    </button>
+                  )}
+
+                {index === messages.length - 1 &&
+                  isApplicationQuery(lastUserMessage) && (
+                    <button
+                      onClick={() => onSetActiveTab("applications")}
+                      className="mt-2 rounded-xl bg-purple-500/20 px-3 py-1 text-sm text-purple-300"
+                    >
+                      Start Application Process
                     </button>
                   )}
               </div>

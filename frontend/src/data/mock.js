@@ -3,6 +3,7 @@ import {
   Bot,
   FileCheck2,
   FileClock,
+  FileText,
   Files,
   ShieldCheck,
   UploadCloud,
@@ -13,6 +14,7 @@ export const navigationItems = [
   { id: "dashboard", label: "Dashboard", icon: Activity },
   { id: "upload", label: "Upload Documents", icon: UploadCloud },
   { id: "permissions", label: "Permissions", icon: ShieldCheck },
+  { id: "applications", label: "Applications", icon: FileText },
 ];
 
 export const initialMessages = [

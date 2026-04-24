@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChatWindow } from "./components/chat/ChatWindow";
+import ApplicationsPage from "./components/applications/ApplicationsPage";
 import { DashboardCards } from "./components/dashboard/DashboardCards";
 import { Sidebar } from "./components/layout/Sidebar";
 import PermissionsPage from "./components/permissions/PermissionsPage";
@@ -140,6 +141,10 @@ export default function App() {
 
           {activeTab === "permissions" && (
             <PermissionsPage permissionsInput={permissionsInput} />
+          )}
+
+          {activeTab === "applications" && (
+            <ApplicationsPage uploadedFiles={uploadedFiles} />
           )}
         </div>
       </main>
