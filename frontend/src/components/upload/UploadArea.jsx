@@ -1,6 +1,15 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, CheckCircle2, FileText, Inbox, ArrowRight } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+function maskSensitive(value) {
+  if (!value) return "";
+
+  const str = value.toString().replace(/\s/g, "");
+  const last4 = str.slice(-4);
+  const masked = str.slice(0, -4).replace(/./g, "X");
+
+  return (masked + last4).replace(/(.{4})/g, "$1 ").trim();
+}
 
 const acceptedTypes = [
   "application/pdf",
@@ -114,17 +123,17 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
           <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
             Type
           </p>
-          <p className="mt-1 text-white">
-            {data.type.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())}
-          </p>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {detailItems.map((item) => (
           <div key={item.label}>
-            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
-              {item.label}
-            </p>
-            <p className="mt-1 text-white">{item.value}</p>
+            <p className="mt-1 text-white">
+  {typeof item.label === "string" &&
+  (item.label.toLowerCase().includes("aadhaar") ||
+    item.label.toLowerCase().includes("pan"))
+    ? maskSensitive(item.value)
+    : item.value}
+</p>
           </div>
         ))}
         </div>

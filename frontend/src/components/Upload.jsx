@@ -36,6 +36,15 @@ export default function Upload() {
       setResult(null);
     }
   };
+  function maskSensitive(value) {
+  if (!value) return "";
+
+  const str = value.toString().replace(/\s/g, "");
+  const last4 = str.slice(-4);
+  const masked = str.slice(0, -4).replace(/./g, "X");
+
+  return (masked + last4).replace(/(.{4})/g, "$1 ").trim();
+}
 
   return (
     <div>
@@ -52,8 +61,11 @@ export default function Upload() {
       {result && (
         <div>
           <p>Name: {result.name}</p>
-          <p>DOB: {result.dob}</p>
-          <p>Address: {result.address}</p>
+<p>DOB: {result.dob}</p>
+<p>Address: {result.address}</p>
+
+<p>Aadhaar: {maskSensitive(result.aadhaar)}</p>
+<p>PAN: {maskSensitive(result.pan)}</p>
         </div>
       )}
     </div>
