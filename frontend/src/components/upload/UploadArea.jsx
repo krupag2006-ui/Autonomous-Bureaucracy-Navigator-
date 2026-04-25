@@ -33,6 +33,8 @@ function getNextPendingStepIndex(completedDocuments) {
   return nextIndex === -1 ? requiredDocuments.length : nextIndex;
 }
 
+const requiredDocs = ["aadhaar", "pan", "passport"];
+
 function buildUploadItems(files, documentType) {
   return files.map((file) => ({
     id: `${file.name}-${file.lastModified}`,
@@ -52,10 +54,15 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
   const [isDragging, setIsDragging] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [uploadedDocuments, setUploadedDocuments] = useState({});
+  const [uploadedTypes, setUploadedTypes] = useState([]);
 
   const currentDocument = requiredDocuments[currentStep];
   const isCompleted = currentStep >= requiredDocuments.length;
   const completedCount = Object.keys(uploadedDocuments).length;
+
+  const missingDocs = requiredDocs.filter(
+    doc => !uploadedTypes.includes(doc)
+  );
 
   const queued = useMemo(
     () => files.filter((file) => file.status !== "success").length,
@@ -106,6 +113,12 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
 
         return nextUploadedDocuments;
       });
+
+      // Track uploaded document types
+      if (data.type) {
+        setUploadedTypes(prev => [...new Set([...prev, data.type.toLowerCase()])]);
+      }
+ 
     } catch (error) {
       updateFile(item.id, {
         progress: 0,
@@ -346,6 +359,55 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
         </motion.div>
       )}
 
+      {/* Document Status */}
+      <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-5 shadow-soft backdrop-blur-xl">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h4 className="text-lg font-semibold text-white">Document status</h4>
+            <p className="mt-1 text-sm text-slate-400">
+              Track which required documents have been uploaded and processed.
+            </p>
+          </div>
+          <span className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-500">
+            {uploadedTypes.length} of {requiredDocs.length} uploaded
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {requiredDocs.map(doc => (
+            <div key={doc} className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-slate-950/30 p-4">
+              <div className={`rounded-full p-2 ${
+                uploadedTypes.includes(doc)
+                  ? "bg-emerald-400/20 text-emerald-300"
+                  : "bg-rose-400/20 text-rose-300"
+              }`}>
+                {uploadedTypes.includes(doc) ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <AlertCircle className="h-4 w-4" />
+                )}
+              </div>
+              <div>
+                <p className={`text-sm font-medium ${
+                  uploadedTypes.includes(doc) ? "text-emerald-300" : "text-rose-300"
+                }`}>
+                  {doc.toUpperCase()}
+                </p>
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
+                  {uploadedTypes.includes(doc) ? "Uploaded" : "Missing"}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+        {missingDocs.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
+            <p className="text-sm text-amber-200">
+              ⚠️ Please upload remaining documents to continue with your application.
+            </p>
+          </div>
+        )}
+      </div>
+
       <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-5 shadow-soft backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <div>
@@ -386,7 +448,7 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
                       <div>
                         <p className="text-sm font-medium text-white">{file.name}</p>
                         <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
-                          {file.size} • {file.documentType.name}
+                          {file.size} • {typeof file.documentType === "string" ? file.documentType : file.documentType.name}
                         </p>
                       </div>
                     </div>
