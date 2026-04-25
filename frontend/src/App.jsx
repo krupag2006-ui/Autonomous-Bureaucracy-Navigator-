@@ -122,9 +122,15 @@ export default function App() {
           {activeTab === "dashboard" && (
             <DashboardCards
               activeCard={activeCard}
-              permissionsInput={permissionsInput}
               onOpenChat={() => setActiveTab("chat")}
               onOpenUpload={() => setActiveTab("upload")}
+              setActiveCard={(card) => {
+                setActiveCard(card);
+
+                if (card === "permissions" || card === "applications") {
+                  setActiveTab(card);
+                }
+              }}
               uploadedFiles={successfulFiles}
             />
           )}
@@ -144,7 +150,10 @@ export default function App() {
           )}
 
           {activeTab === "applications" && (
-            <ApplicationsPage uploadedFiles={uploadedFiles} />
+            <ApplicationsPage
+              permissionsInput={permissionsInput}
+              uploadedFiles={uploadedFiles}
+            />
           )}
         </div>
       </main>

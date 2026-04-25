@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, CheckCircle2, FileText, Inbox, ArrowRight } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { ApplicationTracker } from "./ApplicationTracker";
 
 function maskSensitive(value) {
   if (!value) return "";
@@ -18,7 +17,21 @@ const acceptedTypes = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
-const requiredDocuments = ["Aadhar", "PAN", "Passport"];
+const requiredDocuments = [
+  { name: "Aadhar", key: "aadhar" },
+  { name: "PAN", key: "pan" },
+  { name: "Passport", key: "passport" },
+  { name: "Land Ownership Proof", key: "land" },
+  { name: "Building Plan", key: "building" },
+];
+
+function getNextPendingStepIndex(completedDocuments) {
+  const nextIndex = requiredDocuments.findIndex(
+    (document) => !completedDocuments[document.key],
+  );
+
+  return nextIndex === -1 ? requiredDocuments.length : nextIndex;
+}
 
 function buildUploadItems(files, documentType) {
   return files.map((file) => ({
@@ -42,6 +55,7 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
 
   const currentDocument = requiredDocuments[currentStep];
   const isCompleted = currentStep >= requiredDocuments.length;
+  const completedCount = Object.keys(uploadedDocuments).length;
 
   const queued = useMemo(
     () => files.filter((file) => file.status !== "success").length,
@@ -81,12 +95,17 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
         extractedData: data,
       });
 
-      // Mark document as completed and move to next step
-      setUploadedDocuments(prev => ({
-        ...prev,
-        [item.documentType]: true
-      }));
-      setCurrentStep(prev => prev + 1);
+      // Mark document as completed and move to the next pending step.
+      setUploadedDocuments((prev) => {
+        const nextUploadedDocuments = {
+          ...prev,
+          [item.documentType.key]: true,
+        };
+
+        setCurrentStep(getNextPendingStepIndex(nextUploadedDocuments));
+
+        return nextUploadedDocuments;
+      });
     } catch (error) {
       updateFile(item.id, {
         progress: 0,
@@ -127,17 +146,17 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
           </p>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        {detailItems.map((item) => (
-          <div key={item.label}>
-            <p className="mt-1 text-white">
-  {typeof item.label === "string" &&
-  (item.label.toLowerCase().includes("aadhaar") ||
-    item.label.toLowerCase().includes("pan"))
-    ? maskSensitive(item.value)
-    : item.value}
-</p>
-          </div>
-        ))}
+          {detailItems.map((item) => (
+            <div key={item.label}>
+              <p className="mt-1 text-white">
+                {typeof item.label === "string" &&
+                (item.label.toLowerCase().includes("aadhaar") ||
+                  item.label.toLowerCase().includes("pan"))
+                  ? maskSensitive(item.value)
+                  : item.value}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -145,55 +164,64 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
 
   const renderDocumentStep = (document, index) => {
     const isCurrent = index === currentStep;
-    const isCompleted = uploadedDocuments[document];
-    const isFuture = index > currentStep;
+    const isDocumentCompleted = uploadedDocuments[document.key];
 
     return (
-      <motion.div
-        key={document}
+      <motion.button
+        key={document.key}
+        type="button"
         layout
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -12 }}
-        className={`rounded-3xl border p-4 ${
+        onClick={() => setCurrentStep(index)}
+        className={`w-full rounded-3xl border p-4 text-left ${
           isCurrent
             ? "border-sky-400/60 bg-sky-400/10"
-            : isCompleted
+            : isDocumentCompleted
             ? "border-emerald-400/60 bg-emerald-400/10"
             : "border-white/[0.08] bg-slate-950/30"
         }`}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={`rounded-2xl p-3 ${
-              isCurrent
-                ? "bg-sky-400/20 text-sky-300"
-                : isCompleted
-                ? "bg-emerald-400/20 text-emerald-300"
-                : "bg-white/5 text-slate-500"
-            }`}>
-              {isCompleted ? (
+            <div
+              className={`rounded-2xl p-3 ${
+                isCurrent
+                  ? "bg-sky-400/20 text-sky-300"
+                  : isDocumentCompleted
+                  ? "bg-emerald-400/20 text-emerald-300"
+                  : "bg-white/5 text-slate-500"
+              }`}
+            >
+              {isDocumentCompleted ? (
                 <CheckCircle2 className="h-5 w-5" />
               ) : (
                 <FileText className="h-5 w-5" />
               )}
             </div>
             <div>
-              <p className={`text-sm font-medium ${
-                isCurrent ? "text-white" : isCompleted ? "text-emerald-300" : "text-slate-400"
-              }`}>
-                {document}
+              <p
+                className={`text-sm font-medium ${
+                  isCurrent
+                    ? "text-white"
+                    : isDocumentCompleted
+                    ? "text-emerald-300"
+                    : "text-slate-400"
+                }`}
+              >
+                {document.name}
               </p>
               <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
-                {isCompleted ? "Completed" : isCurrent ? "Current step" : "Pending"}
+                {isDocumentCompleted ? "Completed" : isCurrent ? "Current step" : "Pending"}
               </p>
             </div>
           </div>
-          {isCurrent && !isCompleted && (
+          {isCurrent && !isDocumentCompleted ? (
             <ArrowRight className="h-5 w-5 text-sky-400" />
-          )}
+          ) : null}
         </div>
-      </motion.div>
+      </motion.button>
     );
   };
 
@@ -207,11 +235,11 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
           <h3 className="mt-2 text-2xl font-semibold text-white">
             Upload documents
           </h3>
-          {!isCompleted && (
+          {!isCompleted ? (
             <p className="mt-2 text-sm text-slate-400">
-              Step {currentStep + 1} of {requiredDocuments.length}: Upload {currentDocument}
+              Step {currentStep + 1} of {requiredDocuments.length}: Upload {currentDocument.name}
             </p>
-          )}
+          ) : null}
         </div>
         <button
           type="button"
@@ -222,14 +250,12 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
         </button>
       </div>
 
-      <ApplicationTracker currentStep={currentStep} />
-
       {/* Progress Overview */}
       <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-5 shadow-soft backdrop-blur-xl">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <h4 className="text-lg font-semibold text-white">Document Progress</h4>
           <span className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.25em] text-slate-500">
-            {Object.keys(uploadedDocuments).length} of {requiredDocuments.length} completed
+            {completedCount} of {requiredDocuments.length} completed
           </span>
         </div>
         <div className="space-y-3">
@@ -237,7 +263,7 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
         </div>
       </div>
 
-      {!isCompleted && (
+      {!isCompleted ? (
         <motion.div
           layout
           onDragOver={(event) => {
@@ -267,10 +293,11 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
               <Inbox className="h-7 w-7" />
             </motion.div>
             <h4 className="mt-6 text-xl font-semibold text-white">
-              Upload {currentDocument}
+              Upload {currentDocument.name}
             </h4>
             <p className="mt-3 text-sm text-slate-400">
-              Drag and drop your {currentDocument} document, or browse to add the file for processing.
+              Drag and drop your {currentDocument.name} document, or browse to add the file for
+              processing.
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <motion.button
@@ -296,9 +323,7 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
             />
           </div>
         </motion.div>
-      )}
-
-      {isCompleted && (
+      ) : (
         <motion.div
           layout
           className="rounded-[32px] border border-emerald-400/60 bg-emerald-400/10 p-10 text-center shadow-glow backdrop-blur-xl"
@@ -361,7 +386,7 @@ export function UploadArea({ files, sessionId, setFiles, onOpenSidebar }) {
                       <div>
                         <p className="text-sm font-medium text-white">{file.name}</p>
                         <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
-                          {file.size} • {file.documentType}
+                          {file.size} • {file.documentType.name}
                         </p>
                       </div>
                     </div>

@@ -1,19 +1,27 @@
 import { useMemo, useRef, useState } from "react";
+import { runApplicationAgent, runFullAgent } from "../../agents/applicationAgent";
 import { formSchemas } from "../../data/formSchemas";
-import { runApplicationAgent, fillPdf } from "../../utils/formFiller";
+import { generateDocxFile } from "../../utils/docxGenerator";
+import { generateApplicationPDF } from "../../utils/generateDocument";
+import { fillPdf } from "../../utils/formFiller";
+import { ApplicationTracker } from "../upload/ApplicationTracker";
 
 const applicationForms = [
-  { name: "Building Plan Application", link: "https://bbmp.gov.in" },
-  { name: "Electricity Connection", link: "https://bescom.karnataka.gov.in" },
-  { name: "Water Connection", link: "https://bwssb.karnataka.gov.in" },
+  { type: "building", name: "Building Plan Application", link: "https://bbmp.gov.in" },
+  { type: "electricity", name: "Electricity Connection", link: "https://bescom.karnataka.gov.in" },
+  { type: "water", name: "Water Connection", link: "https://bwssb.karnataka.gov.in" },
 ];
 
-export default function ApplicationsPage({ uploadedFiles }) {
+const requiredDocuments = ["Aadhar", "PAN", "Passport"];
+
+export default function ApplicationsPage({ permissionsInput, uploadedFiles }) {
   const inputRef = useRef(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [isAutofilling, setIsAutofilling] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState(null);
+  const [filledFormType, setFilledFormType] = useState(null);
+  const [extractedData, setExtractedData] = useState(null);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const availableFiles = useMemo(
@@ -21,62 +29,88 @@ export default function ApplicationsPage({ uploadedFiles }) {
     [uploadedFiles]
   );
 
+  const currentStep = useMemo(() => {
+    const completedDocuments = new Set(
+      uploadedFiles
+        .filter(
+          (file) =>
+            file.status === "success" &&
+            requiredDocuments.includes(
+              typeof file.documentType === "string"
+                ? file.documentType
+                : file.documentType?.name
+            )
+        )
+        .map((file) =>
+          typeof file.documentType === "string"
+            ? file.documentType
+            : file.documentType?.name
+        )
+    );
+
+    return completedDocuments.size;
+  }, [uploadedFiles]);
+
   const allFiles = selectedFiles.length > 0 ? selectedFiles : availableFiles;
 
   const handleFiles = (files) => {
     setSelectedFiles(Array.from(files));
     setIsReady(false);
-  };
-
-  const handleAutofill = () => {
-    setIsAutofilling(true);
-
-    window.setTimeout(() => {
-      setIsAutofilling(false);
-      setIsReady(true);
-    }, 1200);
+    setDownloadUrl(null);
+    setFilledFormType(null);
+    setExtractedData(null);
+    setError("");
   };
 
   const handleAutoFill = async () => {
     setLoading(true);
+    setError("");
 
     try {
-      const userGoal = "build house";
+      const result = await runFullAgent({
+        goal: permissionsInput?.idea || "build house",
+        uploadedFiles: allFiles,
+        schemas: formSchemas,
+      });
 
-      const extractedData = {
-        name: "Krupa G",
-        address: "Bangalore",
-        dob: "2005-01-01",
-        owner_name: "Krupa G",
-        location: "Bangalore",
-        plot_number: "A21",
-      };
+      setExtractedData(result.extractedData);
+      setFilledFormType(result.formType);
 
-      const agentResult = runApplicationAgent(userGoal, extractedData);
-      const schema = formSchemas[agentResult.formType];
-      const filledUrl = await fillPdf(schema.file, schema, extractedData);
-
+      const schema = formSchemas[result.formType];
+      const filledUrl = await fillPdf(schema.file, result.extractedData);
       setDownloadUrl(filledUrl);
       setIsReady(true);
+    } catch (err) {
+      setIsReady(false);
+      setDownloadUrl(null);
+      setFilledFormType(null);
+      setError(err?.message || "Unable to generate the filled PDF.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDownload = (formName) => {
-    const content = [
-      `Application Form: ${formName}`,
-      `Auto-fill status: ${isReady ? "Completed" : "Pending"}`,
-      `Attached files: ${allFiles.length}`,
-    ].join("\n");
+  const handleDownload = (form) => {
+    if (!downloadUrl || filledFormType !== form.type) {
+      return;
+    }
 
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${formName.toLowerCase().replace(/\s+/g, "-")}.txt`;
+    anchor.href = downloadUrl;
+    anchor.download = `${form.type}-filled.pdf`;
     anchor.click();
-    URL.revokeObjectURL(url);
+  };
+
+  const handleDocxAutoFill = async () => {
+    if (!extractedData) {
+      return;
+    }
+
+    const agentResult = runApplicationAgent("generate building form", extractedData);
+
+    if (agentResult.action === "GENERATE_DOCX") {
+      await generateDocxFile(agentResult.payload);
+    }
   };
 
   return (
@@ -89,6 +123,8 @@ export default function ApplicationsPage({ uploadedFiles }) {
           Start application process
         </h2>
       </div>
+
+      <ApplicationTracker currentStep={currentStep} />
 
       <div className="rounded-3xl border border-white/10 bg-slate-950/30 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -108,15 +144,6 @@ export default function ApplicationsPage({ uploadedFiles }) {
               className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
             >
               Select Files
-            </button>
-
-            <button
-              type="button"
-              onClick={handleAutofill}
-              disabled={allFiles.length === 0 || isAutofilling}
-              className="rounded-2xl bg-purple-500/20 px-4 py-2 text-sm text-purple-200 transition disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isAutofilling ? "Auto-filling..." : "Simulate Auto-fill"}
             </button>
 
             <button
@@ -143,21 +170,67 @@ export default function ApplicationsPage({ uploadedFiles }) {
             : "No files selected yet"}
         </div>
 
-        {loading && (
-          <p className="mt-4 text-sm text-slate-300">
-            Agent is filling your form...
-          </p>
-        )}
+        {loading ? (
+          <div className="mt-4 text-sm text-slate-200">
+            <p>Agent is filling government form...</p>
+            <p>Extracting user data...</p>
+            <p>Mapping fields to application...</p>
+            <p>Overlaying values on template...</p>
+          </div>
+        ) : null}
 
-        {downloadUrl && (
+        {error ? (
+          <p className="mt-4 text-sm text-rose-300">{error}</p>
+        ) : null}
+
+        {extractedData ? (
+          <div className="mt-4 rounded-xl border border-white/10 bg-slate-800 p-4">
+            <p className="text-sm text-slate-400">Extracted Data</p>
+            <ul className="mt-2 space-y-1 text-sm text-slate-200">
+              {Object.entries(extractedData).map(([key, val]) => (
+                <li key={key}>
+                  <strong>{key}:</strong> {val}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {isReady && downloadUrl ? (
+          <p className="mt-3 text-green-400">
+            Application form auto-filled successfully
+          </p>
+        ) : null}
+
+        {downloadUrl ? (
           <a
             href={downloadUrl}
-            download
+            download={`${filledFormType || "application"}-filled.pdf`}
             className="mt-4 inline-block text-sm text-sky-300"
           >
-            Download Filled Form -&gt;
+            Download Filled Government Form -&gt;
           </a>
-        )}
+        ) : null}
+
+        {extractedData ? (
+          <button
+            type="button"
+            onClick={() => generateApplicationPDF(extractedData)}
+            className="mt-3 rounded-lg bg-blue-500 px-4 py-2 text-sm text-white transition hover:bg-blue-400"
+          >
+            Generate AI Application Document
+          </button>
+        ) : null}
+
+        {extractedData ? (
+          <button
+            type="button"
+            onClick={handleDocxAutoFill}
+            className="mt-3 ml-3 rounded-lg bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/15"
+          >
+            Auto Fill DOCX (Agent)
+          </button>
+        ) : null}
       </div>
 
       <div className="grid gap-4">
@@ -181,8 +254,8 @@ export default function ApplicationsPage({ uploadedFiles }) {
 
               <button
                 type="button"
-                onClick={() => handleDownload(form.name)}
-                disabled={!isReady}
+                onClick={() => handleDownload(form)}
+                disabled={!isReady || !downloadUrl || filledFormType !== form.type}
                 className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition disabled:cursor-not-allowed disabled:opacity-50 hover:bg-white/10"
               >
                 Download Form
